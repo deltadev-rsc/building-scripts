@@ -8,6 +8,9 @@ LD = ld.ldd
 CC_FLAGS = -m64 -nostdlib -ffreestanding -fno-pie  
 LD_FLAGS = -m elf_x86_64 -z noexecstack -T ~/open-delta/kernel/boot/x86_64/linker.ld -Ttext 0x10000 --oformat binary
 
+#---os-image---#
+image = "~/OpenDelta/kernel/img/open-delta.img"
+
 #---source-code-and-binaries---#
 bootPath = "~/OpenDelta/kernel/boot/x86_64/boot.asm"
 bootBinPath = "~/OpenDelta/kernel/img/boot_x86_64.bin"
@@ -38,6 +41,8 @@ base_actions() {
     mkdir ~/OpenDelts/kernel/obj/
 }
 
+clone_repo() { git clone https://github.com/deltadev-rsc/OpenDelta.git }
+
 #---function-for-build---#
 build() {
     while true; do
@@ -47,6 +52,10 @@ build() {
         $CC $FLAGS -c $kernelSourcePath -o $kernelObjPath
         $CC $FLAGS -c $idtSourcePath -o $idtBinPath
         $LD $LD_FLAGS -s $kernelObjPath $idtBinPath -o $kernelBinPath
+        dd if=/dev/zero of=$image bs=512 count=32516 status=none
+        mkfs.fat -F12 $iamge
+        dd if=$bootBinPath of=$image conv=ascii bs=1024 count=1
+        dd if=$kernelBinPath of=$image conv=ascii bs=2048 count=1
     done
 } 
 
@@ -57,3 +66,5 @@ build_shell() {
         rustc $dexideSrcPath -o $dexideBinPath
     done  
 }
+
+clone_repo 
