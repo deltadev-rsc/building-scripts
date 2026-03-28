@@ -1,69 +1,43 @@
 #!/bin/bash
 
-#---toolchain---#
-CC = clang
-CXX = clang++
-LD = ld.ldd
-
-CC_FLAGS = -m64 -nostdlib -ffreestanding -fno-pie  
-LD_FLAGS = -m elf_x86_64 -z noexecstack -T ~/open-delta/kernel/boot/x86_64/linker.ld -Ttext 0x10000 --oformat binary
-
-#---os-image---#
-image = "~/OpenDelta/kernel/img/open-delta.img"
-
-#---source-code-and-binaries---#
-bootPath = "~/OpenDelta/kernel/boot/x86_64/boot.asm"
-bootBinPath = "~/OpenDelta/kernel/img/boot_x86_64.bin"
-kernEntryPath = "~/OpenDelta/kernel/kernel_entry.asm"
-kernEntryI386Path = "~/OpenDelta/kernel/entry_i386.asm"
-kernEntryBinPath = "~/OpenDelta/kernel/obj/kern_entry.o"
-kernEntryI386BinPath = "~/OpenDelta/kernel/obj/entry_i386.o"
-
-#---source-code-and-binaries-for-kernel---#
-kernelSourcePath = "~/OpenDelta/kernel/kernel.c"
-kernelObjPath = "~/OpenDelta/kernel/obj/kernel.o"
-kernelBinPath = "~/OpenDelta/kernel/img/kernel.bin"
-idtSourcePath = "~/OpenDelta/kernel/cpu/idt.c"
-idtBinPath = "~/OpenDelta/kernel/obj/idt.o"
-
-#---source-code-for-dltsh---#
-termSrcPath = "~/OpenDelta/shell/src/term.c"
-clocksSrcPath = "~/OpenDelta/shell/src/clocks.rs"
-dexideSrcPath = "~/OpenDelta/shell/src/dexide.rs"
-
-termBinPath = "~/OpenDelta/shell/bin/term"
-clocksBinPath = "~/OpenDelta/shell/bin/clocks"
-dexideBinPath = "~/OpenDelta/shell/bin/dexide"
-
-base_actions() {
+function base_actions() {
     mkdir ~/OpenDelta/shell/bin # folder for shell binaries
     mkdir ~/OpenDelts/kernel/img/
     mkdir ~/OpenDelts/kernel/obj/
 }
 
-clone_repo() { git clone https://github.com/deltadev-rsc/OpenDelta.git }
+function clone_repo() { git clone https://github.com/deltadev-rsc/OpenDelta.git }
 
 #---function-for-build---#
-build() {
-    while true; do
-        nasm $bootPath -f bin -o $bootBinPath 
-        nasm $kernEntryPath -f elf -o $kernEntryBinPath
-        nasm $kernEntryI386Path -f elf -o $kernEntryI386BinPath
-        $CC $FLAGS -c $kernelSourcePath -o $kernelObjPath
-        $CC $FLAGS -c $idtSourcePath -o $idtBinPath
-        $LD $LD_FLAGS -s $kernelObjPath $idtBinPath -o $kernelBinPath
-        dd if=/dev/zero of=$image bs=512 count=32516 status=none
-        mkfs.fat -F12 $iamge
-        dd if=$bootBinPath of=$image conv=ascii bs=1024 count=1
-        dd if=$kernelBinPath of=$image conv=ascii bs=2048 count=1
-    done
-} 
 
-build_shell() {
+function buildKernel() {
+    cd ~/OpenDelta/kernel/
+    
+    #---compile-asm-code---# 
+    nasm boot/i386/boot.asm -f bin -o img/boot.bin    
+    nasm kernel_entry.asm -f elf -o obj/kern_entry.o
+    nasm entry_i386.asm -f elf -o obj/entry_i386.o
+
+    #---compile-kernel---#
+    clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c kernel.c -o obj/kernel.o
+    clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c cpu/idt.c -o obj/idt.o
+    clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c lib/source/stdbase.c -o obj/stdbase.o
+
+    #---create-kernel-bin-file---#
+    ld.lld -m elf_i386 -s obj/kernel.o obj/stdbase.o obj/idt.o obj/kern_entry.o obj/entry_i386.o -o img/kernel.bin -z noexecstack -T link.ld -Ttext 0x10000 --oformat binary
+
+    #---create-os-image---#
+    dd if=/dev/zero of=img/open-delta.img bs=512 count=32516 status=none
+    mkfs.fat -F12 img/open-delta.img
+    dd if=img/boot.bin of=img/open-delta.img conv=ascii bs=1024 count=1 
+    dd if=img/kernel.bin of=img/open-delta.img conv=ascii bs=2048 count=1
+}
+
+function build_shell() {
     while true; do
-        $CC -c $termSrcPath -o $termBinPath
-        rustc $clocksSrcPath -o $clocksBinPath
-        rustc $dexideSrcPath -o $dexideBinPath
+        clang -c ~/OpenDelta/shell/src/term.c -o ~/OpenDelta/bin/dltsh
+        rustc ~/OpenDelta/shell/src/clocks.rs -o ~/OpenDelta/shell/bin/clocks
+        rustc ~/OpenDelta/shell/src/dexide.rs -o ~/OpenDelta/shell/bin/dexide
     done  
 }
 
