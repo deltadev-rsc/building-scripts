@@ -3,7 +3,7 @@
 function build() {
   cd ~/CPP/terminal/
   mkdir bin/
-  g++ terminal.cpp -o bin/term
+  g++ terminal.cpp dex.cpp -o bin/term
 }
 
 function run() { ./bin/term }
