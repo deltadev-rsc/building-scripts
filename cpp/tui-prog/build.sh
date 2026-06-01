@@ -2,10 +2,18 @@
 
 CXX=clang++
 
-function build() {
+function build {
   cd ~/CPP/tui-prog/
   mkdir bin/
   $CXX -o bin/prog -cpp src/main.cpp -lncursesw
 }
 
-function run() { ./bin/prog }
+function run { 
+  ./bin/prog 
+}
+
+function main {
+  build && run
+}
+
+main
