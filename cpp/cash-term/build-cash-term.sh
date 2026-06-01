@@ -1,11 +1,15 @@
 #!/bin/sh
 
-function build() {
+function build {
   cd ~/CPP/cash-terminal/
   mkdir bin/
   g++ cash_term.cpp -o bin/cash_term
 }
 
-function run() { ./bin/cash-term }
+function run { ./bin/cash-term }
 
-build && run
+function main {
+  build && run
+}
+
+main
