@@ -10,15 +10,14 @@ function clone_repo {
     git clone https://github.com/deltadev-rsc/OpenDelta.git 
 }
 
-#---function-for-build---#
 function build_i386 {
     #---compile-asm-code---#
-    nasm boot/i386/boot.asm -f bin -o img/boot.bin
-    nasm kernel_entry.asm -f elf -o obj/entry.o
-    nasm arch/gdt/gdt.asm -f elf -o obj/gdtasm.o
-    nasm cpu/asm/ints.asm -f elf -o obj/intsa.o # intsa - interrupts asm
-    nasm cpu/asm/idt.asm -f elf -o obj/idta.o 
-    nasm tools/fat/asm/tools.asm -f elf -o obj/tools.o
+    nasm boot/i386/boot.asm       -f bin -o img/boot.bin
+    nasm kernel_entry.asm         -f elf -o obj/entry.o
+    nasm arch/gdt/gdt.asm         -f elf -o obj/gdtasm.o
+    nasm cpu/asm/ints.asm         -f elf -o obj/intsa.o # intsa - interrupts asm
+    nasm cpu/asm/idt.asm          -f elf -o obj/idta.o 
+    nasm tools/fat/asm/tools.asm  -f elf -o obj/tools.o
 
     #---compile-kernel---#
     clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c kernel.c -o obj/kernel.o
@@ -42,7 +41,9 @@ function build_i386 {
     clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c tools/fat/fat.c -o obj/fat.o
     clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c tools/fat/disk.c -o obj/disk.o
     clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c tools/fat/mbr.c -o obj/mbr.o
-
+    clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c tools/fat/elf.c -o obj/elf.o
+    clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c tty/min_dltsh.c -o obj/min_dltsh.o
+    clang -m32 -march=i386 -fno-pie -ffreestanding -nostdlib -c ints/int.c -o obj/ints_c.o
 
     #---create-kernel-bin-file---#
     ld.lld -m elf_i386 -s obj/kernel.o obj/stdbase.o obj/idt.o obj/idta.o
@@ -50,23 +51,47 @@ function build_i386 {
         \ obj/pipe.o obj/types.o obj/screen.o  obj/gdt.o obj/gdtasm.o 
         \ obj/ints.o obj/isr.o obj/tty.o obj/ctype.o obj/ports.o 
         \ obj/entry.o obj/proc.o obj/sys.o obj/task.o obj/pic.o obj/fpu.o 
-        \ obj/tools.o obj/fat.o obj/disk.o obj/mbr.o
-        \ -o img/kernel.bin -z noexecstack -T link.ld --oformat elf32-i386
+        \ obj/tools.o obj/fat.o obj/disk.o obj/mbr.o obj/elf.o obj/min_dltsh.o 
+        \ obj/ints_c.o
+        \ -o img/kernel.elf -z noexecstack -T link.ld --oformat elf32-i386
+
+    llvm-objcopy -O binary img/kernel.elf img/kernel.bin 
 
     #---create-os-image---#
-    dd if=/dev/zero of=img/open-delta.img bs=512 count=32516 status=none
-    dd if=img/boot.bin of=img/open-delta.img conv=ascii bs=1024 count=1
-    dd if=img/kernel.bin of=img/open-delta.img conv=ascii bs=2048 count=1
-    mkfs.fat -F12 img/open-delta.img
+    dd if=/dev/zero of=img/open-delta.img bs=512 count=4096 status=none
+    dd if=img/boot.bin of=img/open-delta.img conv=notruc bs=512 count=1
+    dd if=img/kernel.bin of=img/open-delta.img conv=notruc bs=512 seek=1
 }
 
 function build_shell {
     while true; do
-        clang -c ~/OpenDelta/shell/src/term.c -o ~/OpenDelta/bin/dltsh
+        clang ~/OpenDelta/shell/src/term.c 
+            \ ~/OpenDelta/shell/src/files.c
+            \ ~/OpenDelta/shell/src/commands.c
+            \ ~/OpenDelta/shell/src/simple_comms.c
+            \ ~/OpenDelta/shell/src/dltsh.c
+            \ -o ~/OpenDelta/bin/dltsh
+            
+        clang++ ~/OpenDelta/shell/src/help_table.cpp -o bin/table -lncursesw
+        
         rustc ~/OpenDelta/shell/src/clocks.rs -o ~/OpenDelta/shell/bin/clocks
         rustc ~/OpenDelta/shell/src/calc.rs -o ~/OpenDelta/shell/bin/calc
         rustc ~/OpenDelta/shell/src/dexide.rs -o ~/OpenDelta/shell/bin/dexide
     done  
 }
 
-clone_repo 
+function main {
+    echo "cloning repository with source code"
+    clone_repo
+
+    echo "adding folders for binary files"
+    base_actions
+
+    echo "build i386 kernel"
+    build_i386
+
+    echo "build dltsh"
+    build_shell
+}
+
+main
