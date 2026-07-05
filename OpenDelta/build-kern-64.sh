@@ -100,5 +100,5 @@ function run {
 }
 
 base_actions
-build-kern-32
+build-kern-64
 run
